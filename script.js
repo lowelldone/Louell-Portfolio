@@ -75,74 +75,91 @@
   });
 
   // ─────────────────────────────────────────────────────────
-  // ANIMATIONS — reveal on scroll
-  // Elements start at opacity:0 via CSS.
-  // Strategy:
-  //   1. Elements already in viewport → add .visible immediately (synchronous).
-  //   2. Elements below the fold → IntersectionObserver reveals them as they scroll in.
-  //   3. Hard fallback at 1200ms for anything still hidden (belt-and-suspenders).
+  // ANIMATIONS — Professional reveal on scroll & entrance
   // ─────────────────────────────────────────────────────────
 
   const items = document.querySelectorAll('.animate-in');
-  if (!items.length) return;
 
-  function inViewport(el) {
-    const r = el.getBoundingClientRect();
-    return r.bottom > 0 && r.top < window.innerHeight;
-  }
+  if (items.length) {
+    const inViewport = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.bottom > 20 && r.top < window.innerHeight - 20;
+    };
 
-  function reveal(el) {
-    el.classList.add('visible');
-  }
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, {
+        rootMargin: '0px 0px -40px 0px',
+        threshold: 0.08
+      });
 
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        reveal(entry.target);
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.05 });
+      // Observe all elements that start below the fold
+      items.forEach((el) => {
+        if (!inViewport(el)) {
+          observer.observe(el);
+        }
+      });
 
-  items.forEach((el, i) => {
-    const delay = el.dataset.delay != null
-      ? parseInt(el.dataset.delay, 10) * 100
-      : Math.min(i * 60, 300);
-    el.style.transitionDelay = delay + 'ms';
-
-    if (inViewport(el)) {
-      reveal(el);
+      // Initial viewport entrance animation:
+      // Allow browser to complete initial paint, then gracefully cascade elements in
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          let visibleIndex = 0;
+          items.forEach((el) => {
+            if (inViewport(el)) {
+              const delay = el.dataset.delay != null
+                ? parseInt(el.dataset.delay, 10) * 110
+                : visibleIndex * 90;
+              visibleIndex++;
+              setTimeout(() => {
+                el.classList.add('visible');
+              }, delay);
+            }
+          });
+        }, 60);
+      });
     } else {
-      observer.observe(el);
+      // Fallback for browsers without IntersectionObserver
+      items.forEach((el) => el.classList.add('visible'));
     }
-  });
-
-  // Hard fallback — anything still hidden after 1.2s gets force-shown
-  setTimeout(() => {
-    items.forEach(el => { if (!el.classList.contains('visible')) reveal(el); });
-  }, 1200);
+  }
 
   // ── Skill bar animation ──
-  const fills       = Array.from(document.querySelectorAll('.sk-fill'));
-  const fillTargets = fills.map(f => f.style.width || '80%');
-
-  fills.forEach(f => { f.style.width = '0%'; f.style.transition = 'width 0.8s ease'; });
-
-  const barObs = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const group = entry.target;
-      const groupFills = Array.from(group.querySelectorAll('.sk-fill'));
-      groupFills.forEach((f, i) => {
-        const idx = fills.indexOf(f);
-        setTimeout(() => {
-          f.style.width = idx >= 0 ? fillTargets[idx] : '80%';
-        }, i * 100);
-      });
-      barObs.unobserve(group);
+  const fills = Array.from(document.querySelectorAll('.sk-fill'));
+  if (fills.length) {
+    const fillTargets = fills.map(f => f.style.width || '80%');
+    fills.forEach(f => {
+      f.style.width = '0%';
     });
-  }, { threshold: 0.3 });
 
-  document.querySelectorAll('.skills-group').forEach(g => barObs.observe(g));
+    if ('IntersectionObserver' in window) {
+      const barObs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const group = entry.target;
+          const groupFills = Array.from(group.querySelectorAll('.sk-fill'));
+          groupFills.forEach((f, i) => {
+            const idx = fills.indexOf(f);
+            setTimeout(() => {
+              f.style.width = idx >= 0 ? fillTargets[idx] : '80%';
+            }, 120 + i * 80);
+          });
+          barObs.unobserve(group);
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('.skills-group').forEach((g) => barObs.observe(g));
+    } else {
+      fills.forEach((f, i) => {
+        f.style.width = fillTargets[i];
+      });
+    }
+  }
 
 })();
